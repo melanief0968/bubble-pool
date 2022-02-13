@@ -28,7 +28,7 @@ class App {
     this.texts = [];
     this.dataURLs = [];
     this.cachedPictures = {};
-
+    this.mediaPipe = new MediaPipeClient()
     this.loadPoseNetModel();
     this.loadFaceDetection();
     this.initMatter();
@@ -108,6 +108,10 @@ class App {
 
     return video;
   }
+
+  // this.mediaPipe.addEventListener('setup', () => {
+  //   console.log(mediaPipe.video)
+  // })
 
   loadPoseNetModel() {
     this.poseNet = ml5.poseNet(this.video, this.modelLoaded.bind(this));
