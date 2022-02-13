@@ -109,9 +109,7 @@ class App {
     return video;
   }
 
-  // this.mediaPipe.addEventListener('setup', () => {
-  //   console.log(mediaPipe.video)
-  // })
+
 
   loadPoseNetModel() {
     this.poseNet = ml5.poseNet(this.video, this.modelLoaded.bind(this));
@@ -442,4 +440,7 @@ class App {
 window.onload = () => {
   const app = new App();
   app.init();
+  //   this.mediaPipe.addEventListener('setup', () => {
+  //   console.log(mediaPipe.video)
+  // })
 };

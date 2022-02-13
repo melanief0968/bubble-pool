@@ -4,6 +4,8 @@ class Circle {
     let options = {
       friction: 0,
       restitution: 0.5,
+      // frictionAir: 0.07,
+      // restitution: 1,
     };
 
     if (group) options.collisionFilter = { group };
