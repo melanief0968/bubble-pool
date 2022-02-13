@@ -1,4 +1,4 @@
-const WELCOME_SCREEN = 1;
+
 const PICTURE_COUNTDOWN = 2;
 
 class App {
@@ -28,7 +28,7 @@ class App {
     this.texts = [];
     this.dataURLs = [];
     this.cachedPictures = {};
-    this.mediaPipe = new MediaPipeClient()
+    // this.mediaPipe = new MediaPipeClient()
     this.loadPoseNetModel();
     this.loadFaceDetection();
     this.initMatter();
@@ -52,7 +52,7 @@ class App {
     this.picIndex;
     this.faceDetectionDuration = 0;
     this.noDetectionDuration = 0;
-    this.changeState(1);
+    this.changeState(2);
   }
   onKeydown(e) {
     // this.getPicture();
@@ -233,7 +233,7 @@ class App {
         new Circle(
           Math.random() * window.innerWidth,
           -30,
-          Math.random() * 25 + 10,
+          Math.random() * 40 + 20,
           null,
           this.MATTER
         )
@@ -327,71 +327,17 @@ class App {
     this.state = newState;
 
     switch (this.state) {
-      case WELCOME_SCREEN:
-        {
-          // this.clearGroundPhysic();
-          this.clearPersonPhysic();
-          const fontSize = 120;
-          const space = 120;
-          const centerX = this.canvas.width / 2;
-          const centerY = this.canvas.height/2 - (fontSize*5+ space*4)/3;
-          this.ctx.save()
-          this.texts.push(
-            new BigMatterText({
-              text: "COME",
-              textX: centerX,
-              textY: centerY,
-              ctx: this.ctx,
-              MATTER: this.MATTER,
-            })
-          );
-          this.texts.push(
-            new BigMatterText({
-              text: "CLOSER",
-              textX: centerX,
-              textY: centerY + space*1.5,
-              ctx: this.ctx,
-              MATTER: this.MATTER,
-            })
-          );
-          this.texts.push(
-            new BigMatterText({
-              text: "AND PLAY",
-              textX: centerX,
-              textY: centerY + space*3,
-              ctx: this.ctx,
-              MATTER: this.MATTER,
-            })
-          );
-          this.texts.push(
-            new BigMatterText({
-              text: "WITH",
-              textX: centerX,
-              textY: centerY + space*4.5,
-              ctx: this.ctx,
-              MATTER: this.MATTER,
-            })
-          );
-          this.texts.push(
-            new BigMatterText({
-              text: "BUBBLES",
-              textX: centerX,
-              textY: centerY + space*6,
-              ctx: this.ctx,
-              MATTER: this.MATTER,
-            })
-          );
-          this.ctx.restore();
-        }
-        break;
+     
       case PICTURE_COUNTDOWN:
         {
+          this.clearPersonPhysic();
           this.clearGroundPhysic();
           this.clearAllElement(); //? wtf il en reste 29
-         
+          this.floor = new Ground();
+          this.floor.groundLimit(this.MATTER);
 
-          this.texts.forEach((text) => text.removeFromWorld(this.MATTER));
-          this.texts.length = 0;
+          // this.texts.forEach((text) => text.removeFromWorld(this.MATTER));
+          // this.texts.length = 0;
         }
         break;
 
@@ -400,8 +346,8 @@ class App {
           this.detectFaces.forEach((face) => {
             this.takeAndSendFace(face);
           });
-          this.floor = new Ground();
-          this.floor.groundLimit(this.MATTER);
+          // this.floor = new Ground();
+          // this.floor.groundLimit(this.MATTER);
           //facedetection duration = 0
         }
         break;
@@ -419,25 +365,12 @@ class App {
     // console.log(this.MATTER.engine.world.bodies.length);
 
     switch (this.state) {
-      case WELCOME_SCREEN:
-        this.checkIfThereIsSomeone();
-        this.rainBubbles();
-        this.drawBubbles();
-        this.texts.forEach((text) => text.show(this.ctx));
-        if (this.faceDetectionDuration >= 150) {
-          this.faceDetectionDuration = 0;
-          this.changeState(2);
-        }
-        break;
+
       case PICTURE_COUNTDOWN:
         this.checkIfThereIsSomeone();
         this.showFaceDetection();
-
-        // console.log('test');
-        if (this.noDetectionDuration >= 150) {
-          this.noDetectionDuration = 0;
-          this.changeState(1);
-        }
+        this.rainBubbles();
+        this.drawBubbles();
         if (this.faceDetectionDuration >= 150) {
           this.faceDetectionDuration = 0;
           this.changeState(3);
@@ -461,7 +394,7 @@ class App {
               this.clearAllElement();
               this.clearPersonPhysic();
               this.counter = 0;
-              this.changeState(WELCOME_SCREEN);
+              this.changeState(PICTURE_COUNTDOWN);
             }
           }
         }
