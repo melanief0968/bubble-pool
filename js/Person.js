@@ -1,9 +1,11 @@
 class Person {
-  constructor(data, MATTER) {
+  constructor({ pose, MATTER, width, height }) {
+    this.dimensions = { width, height };
+    const data = this.fitPose(pose);
+
     this.MATTER = MATTER;
     this.GROUP = Matter.Body.nextGroup(false);
-    this.boundaries = [];
-    this.points = [];
+    this.boundaries = {};
     this.lerpTiming = 0.5;
     this.defaultSize = 150;
     this.HEAD_SIZE = 250;
@@ -11,150 +13,156 @@ class Person {
     /**
      * LA TETE EST JUSTE LA POSITION DU NEZ EN PLUS GRAND
      */
-    const shouldersDist = this.dist(data[1], data[2]);
+    const shouldersDist = this.dist(data[LEFT_EYE], data[RIGHT_EYE]);
     const ratio = map(shouldersDist, 0, 1280, 0, 1.5);
 
-    data.forEach((item, index) => {
-      this.points.push({ x: item.position.x, y: item.position.y });
+    Object.values(data).forEach(({ name, x, y }, index) => {
+      let size = this.defaultSize * ratio;
 
-      this.boundaries.push(
-        new Boundary(
-          item.position.x,
-          item.position.y,
-          index > 4
-            ? this.defaultSize * ratio
-            : index == 0
-            ? this.HEAD_SIZE * ratio
-            : 1,
-          this.GROUP,
-          MATTER,
-          ratio
-        )
-      );
+      if (name === NOSE) {
+        size = this.HEAD_SIZE * ratio;
+      } else if (this.isOnFace(name)) {
+        size = 1;
+      }
+
+      const boundary = new Boundary(x, y, size, this.GROUP, MATTER, ratio);
+
+      this.boundaries[name] = boundary;
     });
 
-    const parts = 200;
+    const length = 200;
     // GET BODY PARTS
-    this.armRight1 = new BodyPart(0, 0, parts, 40, this.GROUP, MATTER);
-    this.armRight2 = new BodyPart(0, 0, parts, 40, this.GROUP, MATTER);
-    this.armLeft1 = new BodyPart(0, 0, parts, -40, this.GROUP, MATTER);
-    this.armLeft2 = new BodyPart(0, 0, parts, -40, this.GROUP, MATTER);
-    this.legRight1 = new BodyPart(0, 0, parts, 40, this.GROUP, MATTER);
-    this.legRight2 = new BodyPart(0, 0, parts, 40, this.GROUP, MATTER);
-    this.legLeft1 = new BodyPart(0, 0, parts, -40, this.GROUP, MATTER);
-    this.legLeft2 = new BodyPart(0, 0, parts, -40, this.GROUP, MATTER);
+    this.armRight1 = new BodyPart(0, 0, length, 40, this.GROUP, MATTER);
+    this.armRight2 = new BodyPart(0, 0, length, 40, this.GROUP, MATTER);
+    this.armLeft1 = new BodyPart(0, 0, length, -40, this.GROUP, MATTER);
+    this.armLeft2 = new BodyPart(0, 0, length, -40, this.GROUP, MATTER);
+    this.legRight1 = new BodyPart(0, 0, length, 40, this.GROUP, MATTER);
+    this.legRight2 = new BodyPart(0, 0, length, 40, this.GROUP, MATTER);
+    this.legLeft1 = new BodyPart(0, 0, length, -40, this.GROUP, MATTER);
+    this.legLeft2 = new BodyPart(0, 0, length, -40, this.GROUP, MATTER);
     // this.chest1 = new BodyPart(0, 0, parts, 40, this.GROUP, MATTER);
-    let positionArray = [];
-    positionArray.push( {x: 0, y:0})
-    positionArray.push( {x: 0, y:0})
-    positionArray.push( {x: 0, y:0})
-    positionArray.push( {x: 0, y:0})
-    this.neck = new ExtendBodyPart(positionArray, this.GROUP, MATTER);
-    let positionArray2 = [];
-    positionArray2.push( {x: 0, y:0})
-    positionArray2.push( {x: 0, y:0})
-    positionArray2.push( {x: 0, y:0})
-    positionArray2.push( {x: 0, y:0})
-    this.chest = new ExtendBodyPart(positionArray,this.GROUP, MATTER);
-  }
-  update(data) {
-    data.forEach((item, index) => {
-      this.points[index].x = this.lerp(
-        this.points[index].x,
-        item.position.x,
-        this.lerpTiming
-      );
-      this.points[index].y = this.lerp(
-        this.points[index].y,
-        item.position.y,
-        this.lerpTiming
-      );
-    });
-    const shouldersDist = this.dist(data[1], data[2]);
-    const ratio = map(shouldersDist, 0, 1280, 0, 8);
 
-    this.boundaries.forEach((item, index) => {
-      const transformation =
-        (ratio * (index == 0 ? this.HEAD_SIZE : this.defaultSize)) /
-        item.body.circleRadius;
-      Matter.Body.setPosition(item.body, {
-        x: this.points[index].x,
-        y: this.points[index].y - (index == 0 ? 50 * ratio : 0),
-      });
-      Matter.Body.scale(
-        item.body,
-        index > 4 || index == 0 ? transformation : 1,
-        index > 4 || index == 0 ? transformation : 1
-      );
+    let positionArray = createArray(4, { x: 0, y: 0 });
+    this.neck = new ExtendBodyPart(positionArray, this.GROUP, MATTER);
+
+    positionArray = createArray(4, { x: 0, y: 0 });
+    this.chest = new ExtendBodyPart(positionArray, this.GROUP, MATTER);
+  }
+
+  fitPose(pose) {
+    const { width, height } = this.dimensions;
+
+    const data = {};
+
+    Object.entries(pose).forEach(([name, landmark]) => {
+      //! filter unused points from mediapipe
+      if (!(name in CHOSEN_FEATURES)) return;
+
+      const item = {
+        name,
+        x: landmark.x * width,
+        y: landmark.y * height,
+      };
+
+      data[name] = item;
+    });
+
+    return data;
+  }
+
+  update(pose) {
+    if (!pose) return;
+
+    const data = this.fitPose(pose);
+    const shouldersDist = this.dist(data[LEFT_EYE], data[RIGHT_EYE]);
+    const scaleFactor = map(shouldersDist, 0, 1280, 0, 8);
+
+    Object.entries(data).forEach(([name, { x, y }]) => {
+      let size = this.defaultSize;
+      let item = this.boundaries[name];
+
+      if (!item) return;
+
+      if (name === NOSE) {
+        y -= 50 * scaleFactor;
+        size = this.HEAD_SIZE;
+      }
+
+      let scale = 1;
+
+      if (!this.isOnFace(name) || name === NOSE) {
+        scale = (scaleFactor * size) / item.body.circleRadius;
+      }
+
+      Matter.Body.setPosition(item.body, { x, y });
+      Matter.Body.scale(item.body, scale, scale);
     });
 
     /////////////////////
-    // ARMRIGHT sur lecran
-    const size = this.dist(data[6], data[8]);
-    const angle = this.getAngle(data[6], data[8]);
-    this.armRight1.position(data[6].position.x, data[6].position.y);
-    this.armRight1.resize(size);
-    this.armRight1.rotate(angle);
-    const size2 = this.dist(data[8], data[10]);
-    const angle2 = this.getAngle(data[8], data[10]);
-    this.armRight2.position(data[8].position.x, data[8].position.y);
-    this.armRight2.resize(size2);
-    this.armRight2.rotate(angle2);
+    //* RIGHT ARM
+    this.positionBodyPart(
+      this.armRight1,
+      data[RIGHT_SHOULDER],
+      data[RIGHT_ELBOW]
+    );
+    this.positionBodyPart(this.armRight2, data[RIGHT_ELBOW], data[RIGHT_WRIST]);
 
-    // ARMLEFT
-    const size3 = this.dist(data[5], data[7]);
-    const angle3 = this.getAngle(data[5], data[7]);
-    this.armLeft1.position(data[5].position.x, data[5].position.y);
-    this.armLeft1.resize(size3);
-    this.armLeft1.rotate(angle3);
-    const size4 = this.dist(data[7], data[9]);
-    const angle4 = this.getAngle(data[7], data[9]);
-    this.armLeft2.position(data[7].position.x, data[7].position.y);
-    this.armLeft2.resize(size4);
-    this.armLeft2.rotate(angle4);
+    //* LEFT ARM
+    this.positionBodyPart(this.armLeft1, data[LEFT_SHOULDER], data[LEFT_ELBOW]);
+    this.positionBodyPart(this.armLeft2, data[LEFT_ELBOW], data[LEFT_WRIST]);
 
-    // LEGRIGHT
-    const size5 = this.dist(data[12], data[14]);
-    const angle5 = this.getAngle(data[12], data[14]);
-    this.legRight1.position(data[12].position.x, data[12].position.y);
-    this.legRight1.resize(size5);
-    this.legRight1.rotate(angle5);
-    const size6 = this.dist(data[14], data[16]);
-    const angle6 = this.getAngle(data[14], data[16]);
-    this.legRight2.position(data[14].position.x, data[14].position.y);
-    this.legRight2.resize(size6);
-    this.legRight2.rotate(angle6);
+    //* RIGHT LEG
+    this.positionBodyPart(this.legRight1, data[RIGHT_HIP], data[RIGHT_KNEE]);
+    this.positionBodyPart(this.legRight2, data[RIGHT_KNEE], data[RIGHT_ANKLE]);
 
-    // LEGLEFT
-    const size7 = this.dist(data[11], data[13]);
-    const angle7 = this.getAngle(data[11], data[13]);
-    this.legLeft1.position(data[11].position.x, data[11].position.y);
-    this.legLeft1.resize(size7);
-    this.legLeft1.rotate(angle7);
-    const size8 = this.dist(data[13], data[15]);
-    const angle8 = this.getAngle(data[13], data[15]);
-    this.legLeft2.position(data[13].position.x, data[13].position.y);
-    this.legLeft2.resize(size8);
-    this.legLeft2.rotate(angle8);
-    
+    //* LEFT LEG
+    this.positionBodyPart(this.legLeft1, data[LEFT_HIP], data[LEFT_KNEE]);
+    this.positionBodyPart(this.legLeft2, data[LEFT_KNEE], data[LEFT_ANKLE]);
 
-    let positionArray = [];
-    positionArray.push( {x: data[1].position.x, y:data[1].position.y});
-    positionArray.push( {x: data[2].position.x, y:data[2].position.y});
-    positionArray.push( {x: data[6].position.x, y:data[6].position.y});
-    positionArray.push( {x: data[5].position.x, y:data[5].position.y});
-    this.neck.update(positionArray);
-    let positionArray2 = [];
-    positionArray2.push( {x: data[12].position.x, y:data[12].position.y});
-    positionArray2.push( {x: data[6].position.x, y:data[6].position.y});
-    positionArray2.push( {x: data[5].position.x, y:data[5].position.y});
-    positionArray2.push( {x: data[11].position.x, y:data[11].position.y});
-    this.chest.update(positionArray2);
+    this.neck.update([
+      data[LEFT_EYE],
+      data[RIGHT_EYE],
+      data[RIGHT_SHOULDER],
+      data[LEFT_SHOULDER],
+    ]);
 
+    this.chest.update([
+      data[RIGHT_HIP],
+      data[RIGHT_SHOULDER],
+      data[LEFT_SHOULDER],
+      data[LEFT_HIP],
+    ]);
+  }
+
+  destroy() {
+    Object.values(this.boundaries).forEach((item) => item.removeFromWorld());
+    this.boundaries.length = 0;
+    this.neck.removeFromWorld();
+    this.chest.removeFromWorld();
+    this.armRight1.removeFromWorld();
+    this.armRight2.removeFromWorld();
+    this.armLeft1.removeFromWorld();
+    this.armLeft2.removeFromWorld();
+    this.legRight1.removeFromWorld();
+    this.legRight2.removeFromWorld();
+    this.legLeft1.removeFromWorld();
+    this.legLeft2.removeFromWorld();
+  }
+
+  positionBodyPart(bodyPart, pos1, pos2) {
+    const size = this.dist(pos1, pos2);
+    const angle = this.getAngle(pos1, pos2);
+    bodyPart.position(pos1.x, pos1.y);
+    bodyPart.resize(size);
+    bodyPart.rotate(angle);
+  }
+
+  isOnFace(name) {
+    return name in FACIAL_FEATURES;
   }
 
   show(ctx) {
-    this.boundaries.forEach((item) => {
+    Object.values(this.boundaries).forEach((item) => {
       item.show(ctx);
     });
 
@@ -170,20 +178,107 @@ class Person {
     this.neck.show(ctx);
   }
 
-
   lerp(v0, v1, t) {
     return v0 * (1 - t) + v1 * t;
   }
   dist(p1, p2) {
-    return Math.sqrt(
-      Math.pow(p2.position.x - p1.position.x, 2) +
-        Math.pow(p2.position.y - p1.position.y, 2)
-    );
+    return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
   }
   getAngle(p1, p2) {
-    return Math.atan2(
-      p2.position.y - p1.position.y,
-      p2.position.x - p1.position.x
-    );
+    return Math.atan2(p2.y - p1.y, p2.x - p1.x);
   }
+}
+
+const NOSE = "NOSE";
+const LEFT_EYE_INNER = "LEFT_EYE_INNER";
+const LEFT_EYE = "LEFT_EYE";
+const LEFT_EYE_OUTER = "LEFT_EYE_OUTER";
+const RIGHT_EYE_INNER = "RIGHT_EYE_INNER";
+const RIGHT_EYE = "RIGHT_EYE";
+const RIGHT_EYE_OUTER = "RIGHT_EYE_OUTER";
+const LEFT_EAR = "LEFT_EAR";
+const RIGHT_EAR = "RIGHT_EAR";
+const LEFT_RIGHT = "LEFT_RIGHT";
+const RIGHT_LEFT = "RIGHT_LEFT";
+const LEFT_SHOULDER = "LEFT_SHOULDER";
+const RIGHT_SHOULDER = "RIGHT_SHOULDER";
+const LEFT_ELBOW = "LEFT_ELBOW";
+const RIGHT_ELBOW = "RIGHT_ELBOW";
+const LEFT_WRIST = "LEFT_WRIST";
+const RIGHT_WRIST = "RIGHT_WRIST";
+const LEFT_PINKY = "LEFT_PINKY";
+const RIGHT_PINKY = "RIGHT_PINKY";
+const LEFT_INDEX = "LEFT_INDEX";
+const RIGHT_INDEX = "RIGHT_INDEX";
+const LEFT_THUMB = "LEFT_THUMB";
+const RIGHT_THUMB = "RIGHT_THUMB";
+const LEFT_HIP = "LEFT_HIP";
+const RIGHT_HIP = "RIGHT_HIP";
+const LEFT_KNEE = "LEFT_KNEE";
+const RIGHT_KNEE = "RIGHT_KNEE";
+const LEFT_ANKLE = "LEFT_ANKLE";
+const RIGHT_ANKLE = "RIGHT_ANKLE";
+const LEFT_HEEL = "LEFT_HEEL";
+const RIGHT_HEEL = "RIGHT_HEEL";
+const LEFT_FOOT_INDEX = "LEFT_FOOT_INDEX";
+const RIGHT_FOOT_INDEX = "RIGHT_FOOT_INDEX";
+
+const FACIAL_FEATURES = {
+  NOSE: true,
+  // LEFT_EYE_INNER: true,
+  LEFT_EYE: true,
+  // LEFT_EYE_OUTER: true,
+  // RIGHT_EYE_INNER: true,
+  RIGHT_EYE: true,
+  // RIGHT_EYE_OUTER: true,
+  LEFT_EAR: true,
+  RIGHT_EAR: true,
+  // LEFT_RIGHT: true,
+  // RIGHT_LEFT: true,
+};
+
+const CHOSEN_FEATURES = {
+  NOSE: true,
+  // LEFT_EYE_INNER: true,
+  LEFT_EYE: true,
+  // LEFT_EYE_OUTER: true,
+  // RIGHT_EYE_INNER: true,
+  RIGHT_EYE: true,
+  // RIGHT_EYE_OUTER: true,
+  LEFT_EAR: true,
+  RIGHT_EAR: true,
+  // LEFT_RIGHT: true,
+  // RIGHT_LEFT: true,
+  LEFT_SHOULDER: true,
+  RIGHT_SHOULDER: true,
+  LEFT_ELBOW: true,
+  RIGHT_ELBOW: true,
+  LEFT_WRIST: true,
+  RIGHT_WRIST: true,
+  // LEFT_PINKY: true,
+  // RIGHT_PINKY: true,
+  // LEFT_INDEX: true,
+  // RIGHT_INDEX: true,
+  // LEFT_THUMB: true,
+  // RIGHT_THUMB: true,
+  LEFT_HIP: true,
+  RIGHT_HIP: true,
+  LEFT_KNEE: true,
+  RIGHT_KNEE: true,
+  LEFT_ANKLE: true,
+  RIGHT_ANKLE: true,
+  // LEFT_HEEL: true,
+  // RIGHT_HEEL: true,
+  // LEFT_FOOT_INDEX: true,
+  // RIGHT_FOOT_INDEX: true,
+};
+
+function createArray(nElements, obj) {
+  return Array(nElements)
+    .fill()
+    .map(() => weakCopy(obj));
+}
+
+function weakCopy(obj) {
+  return { ...obj }; //? spread operator
 }

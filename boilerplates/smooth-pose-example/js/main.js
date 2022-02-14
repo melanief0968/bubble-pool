@@ -33,6 +33,8 @@ function update() {
 
     const pose = smoother.smoothDamp() // or smoother.lerp()
 
+    console.log(pose);
+
     skeleton.update(pose)
     skeleton.show(ctx, { color: 'red' })
 

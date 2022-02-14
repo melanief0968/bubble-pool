@@ -5,10 +5,13 @@ class Circle {
       friction: 0,
       restitution: 0.5,
       // frictionAir: 0.07,
+      // frictionAir: this.friction,
       // restitution: 1,
     };
 
     if (group) options.collisionFilter = { group };
+
+    this.friction = Math.random() *0.004;
 
     this.body = this.MATTER.Bodies.circle(x, y, r, options);
     this.r = r;

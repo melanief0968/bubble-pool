@@ -1,36 +1,41 @@
-
 const PICTURE_COUNTDOWN = 2;
+
+const mediaPipe = new MediaPipeClient();
+window.mediaPipe = mediaPipe; // global object mediaPipe
 
 class App {
   constructor() {}
-  async init() {
-   
-    this.video_wrapper = document.getElementById("video");
-    this.canvas = document.createElement("canvas");
-
+  async init({ canvas, video, pixelDensity = 1 }) {
+    // this.video_wrapper = document.getElementById("video");
+    this.canvas = canvas;
     this.ctx = this.canvas.getContext("2d");
 
+    this.smoother = new MediaPipeSmoothPose({
+      dampAmount: 0.1, // range ~1-10 [0 is fastest]
+    });
+
     // console.dir(this.video);
+    this.pixelDensity = pixelDensity;
+    this.video = video;
+    // const { innerWidth, innerHeight } = window;
 
-    this.video = await this.createWebcam();
-    const { innerWidth, innerHeight } = window;
+    // this.video.width = innerWidth;
+    // this.video.height = innerHeight;
+    this.canvas.width = video.width * pixelDensity;
+    this.canvas.height = video.height * pixelDensity;
 
-    this.video.width = innerWidth;
-    this.video.height = innerHeight;
-    this.canvas.width = innerWidth;
-    this.canvas.height = innerHeight;
-
-    this.video_wrapper.appendChild(this.video);
-    this.video_wrapper.appendChild(this.canvas);
+    // this.video_wrapper.appendChild(this.video);
+    // this.video_wrapper.appendChild(this.canvas);
 
     this.frameCount = 0;
     this.circles = [];
     this.texts = [];
     this.dataURLs = [];
     this.cachedPictures = {};
+    this.poses = [];
     // this.mediaPipe = new MediaPipeClient()
-    this.loadPoseNetModel();
-    this.loadFaceDetection();
+    // this.loadPoseNetModel();
+    // this.loadFaceDetection();
     this.initMatter();
     //
     this.floor = new Ground();
@@ -52,7 +57,10 @@ class App {
     this.picIndex;
     this.faceDetectionDuration = 0;
     this.noDetectionDuration = 0;
-    this.changeState(2);
+    this.changeState(PICTURE_COUNTDOWN);
+    this.sound;
+
+    this.isReady = true;
   }
   onKeydown(e) {
     // this.getPicture();
@@ -89,43 +97,34 @@ class App {
     // this.floor.groundLimit(this.MATTER);
   }
 
-  async createWebcam() {
-    const video = document.createElement("video");
+  // loadPoseNetModel() {
+  //   this.poseNet = ml5.poseNet(this.video, this.modelLoaded.bind(this));
+  // }
+  // modelLoaded() {
+  //   console.log("model loaded");
+  //   // this.isReady = true;
+  //   this.draw();
+  //   this.poseNet.on("pose", (results) => {
+  // if (!this.person && results && results[0])
+  //   this.person = new Person(results[0].pose.keypoints, this.MATTER);
+  // this.poses = results;
+  //   if (this.person == 1 && results && results[1])
+  //   this.person2 = new Person(results[1].pose.keypoints, this.MATTER);
+  // this.poses = results;
+  //   });
+  // }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  onPose(pose) {
+    this.smoother.target(pose);
 
-    video.srcObject = stream;
-    // this.videoIsReady = true;
+    if (!this.person && pose) {
+      const { width, height } = this.canvas;
+      this.person = new Person({ pose, MATTER: this.MATTER, width, height });
+      this.person.update(pose);
+    }
 
-    await new Promise((resolve) => {
-      video.onloadedmetadata = () => {
-        video.play();
-        video.width = video.videoWidth;
-        video.height = video.videoHeight;
-        resolve();
-      };
-    });
-
-    return video;
-  }
-
-
-
-  loadPoseNetModel() {
-    this.poseNet = ml5.poseNet(this.video, this.modelLoaded.bind(this));
-  }
-  modelLoaded() {
-    console.log("model loaded");
-    this.isReady = true;
-    this.draw();
-    this.poseNet.on("pose", (results) => {
-      if (!this.person && results && results[0])
-        this.person = new Person(results[0].pose.keypoints, this.MATTER);
-      this.poses = results;
-    //   if (this.person == 1 && results && results[1])
-    //   this.person2 = new Person(results[1].pose.keypoints, this.MATTER);
-    // this.poses = results;
-    });
+    this.poses.length = 0; //? clear array
+    if (pose) this.poses.push(pose);
   }
   // --------------------------------------------------
   // TRY TO ADD DETECTION
@@ -153,76 +152,66 @@ class App {
     this.isReadyFace = true;
   }
 
-  takeAndSendFace(faceDetection) {
-    const { x, y, w, h } = faceDetection;
-    const bigSide = Math.max(w, h);
-    const smallSide = Math.min(w, h);
+  normalizeDensity(n) {
+    return n / this.pixelDensity;
+  }
+
+  takeAndSendFace(boundary) {
     const picIndex = Date.now();
 
-    const stretchVideoCanvas = document.createElement("canvas");
-    const stretchCtx = stretchVideoCanvas.getContext("2d");
+    const { min, max } = boundary.body.bounds;
 
-    stretchVideoCanvas.width = this.canvas.width;
-    stretchVideoCanvas.height = this.canvas.height;
+    const margin = 10 * this.pixelDensity;
 
-    stretchCtx.drawImage(
-      this.video,
-      0,
-      0,
-      this.canvas.width,
-      this.canvas.height
-    );
+    const minX = this.normalizeDensity(min.x - margin);
+    const minY = this.normalizeDensity(min.y - margin);
+    const maxX = this.normalizeDensity(max.x + margin);
+    const maxY = this.normalizeDensity(max.y + margin);
 
-    const videoCanvas = document.createElement("canvas");
-    const ctx = videoCanvas.getContext("2d");
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-    videoCanvas.width = smallSide;
-    videoCanvas.height = smallSide;
+    const width = maxX - minX;
+    const height = maxY - minY;
 
-    ctx.drawImage(
-      stretchVideoCanvas,
-      x,
-      y,
-      w,
-      h,
-      0,
-      0,
-      smallSide,
-      smallSide
-    );
+    canvas.width = width;
+    canvas.height = height;
 
-    const imageString = videoCanvas.toDataURL("image/jpeg", 0.8);
-    const image = new Image();
-    image.src = imageString;
-    // console.log(image);
+    ctx.drawImage(this.video, minX, minY, width, height, 0, 0, width, height);
+
+    const imageString = canvas.toDataURL("image/jpeg", 0.8);
+    // // const image = new Image();
+    // // image.src = imageString;
+    // console.log(imageString);
+
+      
     SEND_MESSAGE("PICTURES-GESTS/PICTURES-STORAGE/" + picIndex, imageString);
   }
 
   showFaceDetection() {
-    if (this.faceDetections) {
-      if (this.faceDetections.length > 0) {
-        for (let i = 0; i < this.faceDetections.length; i += 1) {
-          const alignedRect = this.faceDetections[i].alignedRect;
-          const boxX = alignedRect._box._x;
-          const boxY = alignedRect._box._y;
-          const boxWidth = alignedRect._box._width;
-          const boxHeight = alignedRect._box._height;
-          let biggerPhotoX = boxWidth / 4;
-          let biggerPhotoY = boxHeight / 4;
-          let x = boxX - biggerPhotoX;
-          let y = boxY 
-          let w = boxWidth + 2 * biggerPhotoX;
-          let h = boxHeight 
-          this.detectFaces.splice(0, this.detectFaces.length);
-          this.detectFaces.push(new FaceDetection(x, y, w, h));
-          // this.detectFaces.forEach((face) => face.showFaceDetection(this.ctx));
-
-          //!
-          //*
-          //?
-        }
-      }
-    }
+    // if (this.faceDetections) {
+    //   if (this.faceDetections.length > 0) {
+    //     for (let i = 0; i < this.faceDetections.length; i += 1) {
+    //       const alignedRect = this.faceDetections[i].alignedRect;
+    //       const boxX = alignedRect._box._x;
+    //       const boxY = alignedRect._box._y;
+    //       const boxWidth = alignedRect._box._width;
+    //       const boxHeight = alignedRect._box._height;
+    //       let biggerPhotoX = boxWidth / 4;
+    //       let biggerPhotoY = boxHeight / 4;
+    //       let x = boxX - biggerPhotoX;
+    //       let y = boxY;
+    //       let w = boxWidth + 2 * biggerPhotoX;
+    //       let h = boxHeight;
+    //       this.detectFaces.splice(0, this.detectFaces.length);
+    //       this.detectFaces.push(new FaceDetection(x, y, w, h));
+    //       this.detectFaces.forEach((face) => face.showFaceDetection(this.ctx));
+    //       //!
+    //       //*
+    //       //?
+    //     }
+    //   }
+    // }
   }
   // --------------------------------------------------
   rainBubbles() {
@@ -281,7 +270,7 @@ class App {
         this.person &&
         Matter.Collision.collides(
           this.circles[i].body,
-          this.person.boundaries[0].body
+          this.person.boundaries[NOSE].body
         )
       ) {
         // console.log("HEAD TOUCHED");
@@ -308,24 +297,14 @@ class App {
   }
 
   checkIfThereIsSomeone() {
-    if (this.faceDetections) {
-      if (this.faceDetections.length > 0) {
-        this.faceDetectionDuration++;
-        this.noDetectionDuration = 0;
-      } else {
-        this.noDetectionDuration++;
-        if (this.noDetectionDuration >= 60) {
-          this.faceDetectionDuration = 0;
-        }
-      }
-    }
+    if (this.poses.length === 0) return;
+    this.faceDetectionDuration++;
   }
 
   changeState(newState) {
     this.state = newState;
 
     switch (this.state) {
-     
       case PICTURE_COUNTDOWN:
         {
           this.clearPersonPhysic();
@@ -341,9 +320,9 @@ class App {
 
       case 3:
         {
-          this.detectFaces.forEach((face) => {
-            this.takeAndSendFace(face);
-          });
+          // this.detectFaces.forEach((face) => {
+          this.takeAndSendFace(this.person.boundaries[NOSE]);
+          // });
           // this.floor = new Ground();
           // this.floor.groundLimit(this.MATTER);
           //facedetection duration = 0
@@ -355,47 +334,74 @@ class App {
   draw() {
     this.ctx.fillStyle = "lightgrey";
 
+    const smoothedPose = this.smoother.smoothDamp();
+
+    // if (!this.person && smoothedPose)
+    // this.person = new Person(smoothedPose, this.MATTER);
+
     const { width, height } = this.canvas;
 
-    this.ctx.fillRect(0, 0, width, height);
+    // this.ctx.fillRect(0, 0, width, height);
     this.ctx.drawImage(this.video, 0, 0, width, height);
     this.MATTER.Engine.update(this.MATTER.engine); //! was in a state before
     // console.log(this.MATTER.engine.world.bodies.length);
 
     switch (this.state) {
-
       case PICTURE_COUNTDOWN:
         this.checkIfThereIsSomeone();
-        this.showFaceDetection();
+        // this.showFaceDetection();
         this.rainBubbles();
         this.drawBubbles();
-        if (this.faceDetectionDuration >= 150) {
+        if (this.faceDetectionDuration >= 150 && this.person) {
           this.faceDetectionDuration = 0;
           this.changeState(3);
         }
 
         break;
       case 3:
+        console.log("STATE3");
         this.rainBubbles();
         this.drawBubbles();
         //person
-        if (this.person) {
-          if (this.poses.length > 0) {
-            this.counter = 0;
-            this.person.update(this.poses[0].pose.keypoints);
-          }
-          // this.person.show(this.ctx);
 
-          if (this.poses.length <= 0) {
-            this.counter++;
-            if (this.counter >= 200) {
-              this.clearAllElement();
-              this.clearPersonPhysic();
-              this.counter = 0;
-              this.changeState(PICTURE_COUNTDOWN);
-            }
-          }
+        if (this.person) {
+          this.person.update(smoothedPose);
+          this.person.show(this.ctx);
         }
+
+
+
+        if (this.poses.length === 0) {
+          this.counter++;
+
+          if (this.counter >= 200) {
+            console.log("NOBODY");
+            this.clearAllElement();
+            this.clearPersonPhysic();
+            this.changeState(PICTURE_COUNTDOWN);
+          }
+        } else {
+          this.counter = 0;
+        }
+        // if (this.person) {
+        //   if (this.poses.length > 0) {
+        //     this.counter = 0;
+        //     this.person.update(smoothedPose);
+        //   }
+
+        //   this.person.show(this.ctx);
+
+        //   if (this.poses.length <= 0) {
+        //     this.counter++;
+        //     if (this.counter >= 200) {
+        //       console.log("NOBODY")
+        //       this.clearAllElement();
+        //       this.clearPersonPhysic();
+        //       this.counter = 0;
+        //       this.changeState(PICTURE_COUNTDOWN);
+        //     }
+        //   }
+        // }
 
         break;
     }
@@ -418,29 +424,25 @@ class App {
   }
   clearPersonPhysic() {
     if (this.person) {
-      this.person.boundaries.forEach((item) => item.removeFromWorld());
-      this.person.boundaries.length = 0;
-      this.person.neck.removeFromWorld();
-      this.person.chest.removeFromWorld();     
-      this.person.armRight1.removeFromWorld(); 
-      this.person.armRight2.removeFromWorld(); 
-      this.person.armLeft1.removeFromWorld(); 
-      this.person.armLeft2.removeFromWorld(); 
-      this.person.legRight1.removeFromWorld(); 
-      this.person.legRight2.removeFromWorld(); 
-      this.person.legLeft1.removeFromWorld(); 
-      this.person.legLeft2.removeFromWorld(); 
- 
+      this.person.destroy()
       this.person = null;
     }
-
   }
 }
 
 window.onload = () => {
   const app = new App();
-  app.init();
-  //   this.mediaPipe.addEventListener('setup', () => {
-  //   console.log(mediaPipe.video)
-  // })
+
+  mediaPipe.addEventListener("setup", () => {
+    const video = mediaPipe.video;
+    const canvas = document.querySelector(".main-canvas");
+
+    app.init({ canvas, video, pixelDensity: 2 });
+    app.draw();
+  });
+
+  mediaPipe.addEventListener("pose", (event) => {
+    // console.log(event.data.skeleton);
+    app.onPose(event.data.skeleton);
+  });
 };
