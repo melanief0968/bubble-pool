@@ -3,5 +3,9 @@ function map(num, start1, stop1, start2, stop2) {
 }
 
 function trueModulo(num, mod) {
-    return ((num % mod) + mod) % mod; //modulo operator, same as js remainder. but works with negative numbers.
+  return ((num % mod) + mod) % mod; //modulo operator, same as js remainder. but works with negative numbers.
+}
+
+function randomRange(min, max) {
+  return Math.random() * (max - min) + min;
 }

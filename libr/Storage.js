@@ -69,9 +69,14 @@ class Storage {
             formData.append('file', blob, fileName)
         }
 
-        return await this.fetch(path, {
+        await this.fetch(path, {
             body: formData, method: 'post',
         }).then(e => e.text())
+
+        const {href} = this.getFullURL(path)
+
+        console.log('kldhjakfjgjk', fileName);
+        return `${href}/${fileName}`
     }
 
     stringToBlob(string, options) {

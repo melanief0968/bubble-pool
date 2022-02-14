@@ -40,6 +40,9 @@ class Person {
     this.legRight2 = new BodyPart(0, 0, length, 40, this.GROUP, MATTER);
     this.legLeft1 = new BodyPart(0, 0, length, -40, this.GROUP, MATTER);
     this.legLeft2 = new BodyPart(0, 0, length, -40, this.GROUP, MATTER);
+    this.footLeft = new BodyPart(0, 0, length, -20, this.GROUP, MATTER);
+    this.footRight = new BodyPart(0, 0, length, -20, this.GROUP, MATTER);
+    
     // this.chest1 = new BodyPart(0, 0, parts, 40, this.GROUP, MATTER);
 
     let positionArray = createArray(4, { x: 0, y: 0 });
@@ -113,11 +116,16 @@ class Person {
 
     //* RIGHT LEG
     this.positionBodyPart(this.legRight1, data[RIGHT_HIP], data[RIGHT_KNEE]);
-    this.positionBodyPart(this.legRight2, data[RIGHT_KNEE], data[RIGHT_ANKLE]);
+    this.positionBodyPart(this.legRight2, data[RIGHT_KNEE], data[RIGHT_HEEL]);
 
     //* LEFT LEG
     this.positionBodyPart(this.legLeft1, data[LEFT_HIP], data[LEFT_KNEE]);
-    this.positionBodyPart(this.legLeft2, data[LEFT_KNEE], data[LEFT_ANKLE]);
+    this.positionBodyPart(this.legLeft2, data[LEFT_KNEE], data[LEFT_HEEL]);
+
+    //* LEFT Foot
+    this.positionBodyPart(this.footLeft, data[LEFT_HEEL], data[LEFT_FOOT_INDEX]);
+    //* RIGHT Foot
+    this.positionBodyPart(this.footRight, data[RIGHT_HEEL], data[RIGHT_FOOT_INDEX]);
 
     this.neck.update([
       data[LEFT_EYE],
@@ -147,6 +155,8 @@ class Person {
     this.legRight2.removeFromWorld();
     this.legLeft1.removeFromWorld();
     this.legLeft2.removeFromWorld();
+    this.footLeft.removeFromWorld();
+    this.footRight.removeFromWorld();
   }
 
   positionBodyPart(bodyPart, pos1, pos2) {
@@ -176,6 +186,8 @@ class Person {
     this.legLeft2.show(ctx);
     this.chest.show(ctx);
     this.neck.show(ctx);
+    this.footLeft.show(ctx);
+    this.footRight.show(ctx);
   }
 
   lerp(v0, v1, t) {
@@ -257,20 +269,20 @@ const CHOSEN_FEATURES = {
   RIGHT_WRIST: true,
   // LEFT_PINKY: true,
   // RIGHT_PINKY: true,
-  // LEFT_INDEX: true,
-  // RIGHT_INDEX: true,
+  LEFT_INDEX: true,
+  RIGHT_INDEX: true,
   // LEFT_THUMB: true,
   // RIGHT_THUMB: true,
   LEFT_HIP: true,
   RIGHT_HIP: true,
   LEFT_KNEE: true,
   RIGHT_KNEE: true,
-  LEFT_ANKLE: true,
-  RIGHT_ANKLE: true,
-  // LEFT_HEEL: true,
-  // RIGHT_HEEL: true,
-  // LEFT_FOOT_INDEX: true,
-  // RIGHT_FOOT_INDEX: true,
+  // LEFT_ANKLE: true,
+  // RIGHT_ANKLE: true,
+  LEFT_HEEL: true,
+  RIGHT_HEEL: true,
+  LEFT_FOOT_INDEX: true,
+  RIGHT_FOOT_INDEX: true,
 };
 
 function createArray(nElements, obj) {

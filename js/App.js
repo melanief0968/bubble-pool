@@ -1,4 +1,8 @@
 const PICTURE_COUNTDOWN = 2;
+const storage = new Storage({
+  path: "melanie",
+  origin: "http://localhost:1080",
+});
 
 const mediaPipe = new MediaPipeClient();
 window.mediaPipe = mediaPipe; // global object mediaPipe
@@ -76,13 +80,28 @@ class App {
   initListeners() {
     document.addEventListener("keydown", this.onKeydown.bind(this));
 
-    this.getInfoPicture = firebase
-      .database()
-      .ref("PICTURES-GESTS/PICTURES-STORAGE/");
-    this.getInfoPicture.on("value", (snapshot) => {
-      // const data = snapshot.val()
-      this.dataURLs = Object.values(snapshot.val());
-    });
+    // this.getInfoPicture = firebase
+    //   .database()
+    //   .ref("PICTURES-GESTS/PICTURES-STORAGE/");
+    // this.getInfoPicture.on("value", (snapshot) => {
+    //   // const data = snapshot.val()
+    //   this.dataURLs = Object.values(snapshot.val());
+    // });
+
+    storage
+      .list("images")
+      .then((list) => {
+        if (!Array.isArray(list)) return;
+
+        this.dataURLs = list.map((item) => {
+          return item.url;
+        });
+
+        // console.log(this.dataURLs);
+      })
+      .catch((e) => {});
+
+    // console.log(b);
   }
 
   initMatter() {
@@ -90,6 +109,7 @@ class App {
       Engine: Matter.Engine,
       Render: Matter.Render,
       World: Matter.World,
+      Body: Matter.Body,
       Bodies: Matter.Bodies,
       engine: Matter.Engine.create(),
     };
@@ -156,7 +176,7 @@ class App {
     return n / this.pixelDensity;
   }
 
-  takeAndSendFace(boundary) {
+  async takeAndSendFace(boundary) {
     const picIndex = Date.now();
 
     const { min, max } = boundary.body.bounds;
@@ -180,12 +200,14 @@ class App {
     ctx.drawImage(this.video, minX, minY, width, height, 0, 0, width, height);
 
     const imageString = canvas.toDataURL("image/jpeg", 0.8);
-    // // const image = new Image();
-    // // image.src = imageString;
     // console.log(imageString);
+    const image = new Image();
+    image.src = imageString;
+    // SEND_MESSAGE("PICTURES-GESTS/PICTURES-STORAGE/" + picIndex, imageString);
 
-      
-    SEND_MESSAGE("PICTURES-GESTS/PICTURES-STORAGE/" + picIndex, imageString);
+    const path = await storage.upload(`images/${picIndex}.jpg`, image);
+    this.dataURLs.push(path);
+    // console.log(this.dataURLs);
   }
 
   showFaceDetection() {
@@ -216,11 +238,13 @@ class App {
   // --------------------------------------------------
   rainBubbles() {
     if (this.isReady && this.frameCount % 12 == 0) {
+      const size = randomRange(20, 60)
+
       this.circles.push(
         new Circle(
           Math.random() * window.innerWidth,
-          -30,
-          Math.random() * 40 + 20,
+          -size * 2,
+          size,
           null,
           this.MATTER
         )
@@ -230,26 +254,26 @@ class App {
   }
 
   async previousImage() {
+    if (this.dataURLs.length === 0) throw new Error("list empty");
     // this.imageToDisplay
     this.currentImageIndex = trueModulo(
       this.currentImageIndex - 1,
       this.dataURLs.length
     );
 
-    const cachedImage = this.cachedPictures[this.currentImageIndex];
-
-    let image = cachedImage;
+    // console.log(this.currentImageIndex);
+    const src = this.dataURLs[this.currentImageIndex];
+    let image = this.cachedPictures[src];
 
     if (!image) {
-      const dataURL = this.dataURLs[this.currentImageIndex];
-
       image = await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
         img.onerror = (e) => reject(e);
-        img.src = dataURL;
-        this.cachedPictures[this.currentImageIndex] = img;
+        img.src = src;
       });
+
+      this.cachedPictures[src] = image;
     }
 
     return image;
@@ -257,7 +281,8 @@ class App {
 
   drawBubbles() {
     // DRAW
-    for (let i = 0; i < this.circles.length; i++) {
+    //! navigate through array in reverse, to delete circles while drawing
+    for (let i = this.circles.length - 1; i >= 0; i--) {
       const posXBall = this.circles[i].body.position.x;
       const posYBall = this.circles[i].body.position.y;
       const radius = this.circles[i].body.circleRadius;
@@ -277,14 +302,18 @@ class App {
         this.circles[i].c = "black";
         // this.circles[i].img = this.img
 
-        this.previousImage()
-          .then((img) => {
-            this.circles[i].addImage(img);
-          })
-          .catch((e) => {
-            console.log("no image found!");
-          });
+        if (!this.circles[i].img) {
+          this.previousImage()
+            .then((img) => {
+              this.circles[i].addImage(img);
+            })
+            .catch((e) => {
+              console.log("no image found!");
+            });
+        }
       }
+
+      this.circles[i].show(this.ctx);
 
       if (posYBall > window.innerHeight + 70) {
         let index = i;
@@ -292,12 +321,14 @@ class App {
         this.circles.splice(index, 1);
       }
 
-      this.circles[i].show(this.ctx);
     }
   }
 
   checkIfThereIsSomeone() {
-    if (this.poses.length === 0) return;
+    if (this.poses.length === 0) {
+      this.faceDetectionDuration = 0;
+      return;
+    }
     this.faceDetectionDuration++;
   }
 
@@ -348,28 +379,26 @@ class App {
 
     switch (this.state) {
       case PICTURE_COUNTDOWN:
-        this.checkIfThereIsSomeone();
-        // this.showFaceDetection();
         this.rainBubbles();
         this.drawBubbles();
-        if (this.faceDetectionDuration >= 150 && this.person) {
+        this.checkIfThereIsSomeone();
+
+        if (this.faceDetectionDuration >= 150) {
           this.faceDetectionDuration = 0;
           this.changeState(3);
         }
 
         break;
       case 3:
-        console.log("STATE3");
+        // console.log("STATE3");
         this.rainBubbles();
         this.drawBubbles();
         //person
 
         if (this.person) {
           this.person.update(smoothedPose);
-          this.person.show(this.ctx);
+          // this.person.show(this.ctx);
         }
-
-
 
         if (this.poses.length === 0) {
           this.counter++;
@@ -424,7 +453,7 @@ class App {
   }
   clearPersonPhysic() {
     if (this.person) {
-      this.person.destroy()
+      this.person.destroy();
       this.person = null;
     }
   }

@@ -3,15 +3,15 @@ class Circle {
     this.MATTER = MATTER;
     let options = {
       friction: 0,
-      restitution: 0.5,
+      // restitution: 0.5,
       // frictionAir: 0.07,
       // frictionAir: this.friction,
-      // restitution: 1,
+      restitution: 0.4,
     };
 
     if (group) options.collisionFilter = { group };
 
-    this.friction = Math.random() *0.004;
+    this.friction = Math.random() * 0.004;
 
     this.body = this.MATTER.Bodies.circle(x, y, r, options);
     this.r = r;
@@ -19,6 +19,16 @@ class Circle {
     this.c = Math.random() < 0.5 ? colors[0] : colors[1];
 
     this.MATTER.World.add(this.MATTER.engine.world, this.body);
+
+      
+      const targetAngle = randomRange(0, Math.PI * 2);
+      const force = randomRange(-1, 1) * 0.1;
+      Matter.Body.applyForce(this.body, this.body.position, {
+        x: Math.cos(targetAngle) * force,
+        y: Math.sin(targetAngle) * force,
+      });
+      // console.log(this);
+
     this.img = undefined;
   }
 
@@ -35,25 +45,29 @@ class Circle {
 
     // ctx.closePath();
 
-    if (this.img) {
-      ctx.clip();
-      const diameter = this.r * 2;
+    try {
+      if (this.img && this.img.complete) {
+        ctx.clip();
+        const diameter = this.r * 2;
 
-      const { width, height } = this.img;
-      // const width = this.img.width;
-      // const height = this.img.height;
+        const { width, height } = this.img;
+        // const width = this.img.width;
+        // const height = this.img.height;
 
-      const x = -width / 2;
-      const y = -height / 2;
+        const x = -width / 2;
+        const y = -height / 2;
 
-      const smallestSide = Math.min(width, height);
-      const scaleFactor = diameter / smallestSide;
-      ctx.scale(scaleFactor, scaleFactor);
-      ctx.drawImage(this.img, x, y, width, height);
-    } else {
-      ctx.fillStyle = this.c;
-      // ctx.shadowColor= "transparent";
-      ctx.fill();
+        const smallestSide = Math.min(width, height);
+        const scaleFactor = diameter / smallestSide;
+        ctx.scale(scaleFactor, scaleFactor);
+        ctx.drawImage(this.img, x, y, width, height);
+      } else {
+        ctx.fillStyle = this.c;
+        // ctx.shadowColor= "transparent";
+        ctx.fill();
+      }
+    } catch (e) {
+      console.log(e);
     }
 
     ctx.restore();
