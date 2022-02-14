@@ -62,7 +62,7 @@ class App {
     this.faceDetectionDuration = 0;
     this.noDetectionDuration = 0;
     this.changeState(PICTURE_COUNTDOWN);
-    this.sound;
+    this.audio = new Audio("../sound/camera_sound.mp3");
 
     this.isReady = true;
   }
@@ -353,6 +353,7 @@ class App {
         {
           // this.detectFaces.forEach((face) => {
           this.takeAndSendFace(this.person.boundaries[NOSE]);
+          this.audio.play();
           // });
           // this.floor = new Ground();
           // this.floor.groundLimit(this.MATTER);
@@ -403,7 +404,7 @@ class App {
         if (this.poses.length === 0) {
           this.counter++;
 
-          if (this.counter >= 200) {
+          if (this.counter >= 100) {
             console.log("NOBODY");
             this.clearAllElement();
             this.clearPersonPhysic();
@@ -461,7 +462,7 @@ class App {
 
 window.onload = () => {
   const app = new App();
-
+  
   mediaPipe.addEventListener("setup", () => {
     const video = mediaPipe.video;
     const canvas = document.querySelector(".main-canvas");
