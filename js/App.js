@@ -63,7 +63,9 @@ class App {
     this.noDetectionDuration = 0;
     this.changeState(PICTURE_COUNTDOWN);
     this.audio = new Audio("../sound/camera_sound.mp3");
-
+    this.bubbleSound1 = new Audio("../sound/bubble_1.mp3");
+    this.bubbleSound2 = new Audio("../sound/bubble_2.mp3");
+    this.bubbleSound3 = new Audio("../sound/bubble_3.mp3");
     this.isReady = true;
   }
   onKeydown(e) {
@@ -306,6 +308,8 @@ class App {
           this.previousImage()
             .then((img) => {
               this.circles[i].addImage(img);
+              this.playRandomSound();
+              
             })
             .catch((e) => {
               console.log("no image found!");
@@ -324,6 +328,17 @@ class App {
     }
   }
 
+  playRandomSound(){
+    let random = Math.random();
+    let r = random*3;
+    if (r<1){
+      this.bubbleSound1.play();
+    }else if (r<2){
+      this.bubbleSound2.play();
+    }else if (r<3){
+      this.bubbleSound3.play();
+    }
+  }
   checkIfThereIsSomeone() {
     if (this.poses.length === 0) {
       this.faceDetectionDuration = 0;
